@@ -49,7 +49,7 @@ $ debuild -us -uc -b
 
 $ mkdir build
 $ cd build
-$ cmake ../ -DCMAKE_INSTALL_PREFIX=`kde4-config --prefix` -DCMAKE_BUILD_TYPE=release
+$ cmake ../ -DCMAKE_INSTALL_PREFIX=`kde4-config --prefix` -DCMAKE_BUILD_TYPE=release -DLIB_INSTALL_DIR=/usr/lib64
 $ make
 $ make install
 

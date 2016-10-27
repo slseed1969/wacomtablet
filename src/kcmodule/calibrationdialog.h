@@ -35,8 +35,9 @@ public:
      * @brief Constructs the fullscreen window for the calibration process
      *
      * @param toolname name of the tool to calibrate (stylus or touch name)
+     * @screengeometry screen geometry used to determine tablet screen offset with multi-screen layouts
     */
-    explicit CalibrationDialog( const QString &toolname );
+    explicit CalibrationDialog( const QString &toolname, const QRect &screengeometry);
 
     /**
      * @brief Returns the new tablet area
@@ -78,6 +79,8 @@ private:
     int m_drawCross;             /**< Which cross should be drawn? 0=topleft, 1=bottomleft, and so on */
     int m_shiftLeft;             /**< Where to start the cross from the left */
     int m_shiftTop;              /**< Where to start the cross from the top */
+    int m_screenXOffset;         /**< Tablet screen X offset */
+    int m_screenYOffset;         /**< Tablet screen Y offset */
 
     QString m_toolName;          /**< Name of the tool to calibrate (stylus name or touch name) */
     QRectF m_originaltabletArea; /**< Original tablet area before calibration */

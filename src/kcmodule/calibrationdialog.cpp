@@ -18,7 +18,7 @@
  */
 
 #include "calibrationdialog.h"
-
+#include "debug.h"
 //KDE includes
 #include <KDE/KLocalizedString>
 
@@ -28,6 +28,7 @@
 #include <QtGui/QMouseEvent>
 #include <QtGui/QPainter>
 #include <QtGui/QX11Info>
+#include <QtGui/QMessageBox>
 
 // X11 includes
 #include <X11/Xlib.h>
@@ -37,28 +38,35 @@
 
 using namespace Wacom;
 
+const int debug = 0;
 const int frameGap = 10;
 const int boxwidth = 100;
+const int numblocks = 8;
 
-CalibrationDialog::CalibrationDialog( const QString &toolname ) :
+CalibrationDialog::CalibrationDialog( const QString &toolname, const QRect &screengeometry ) :
     QDialog( )
 {
     setWindowState( Qt::WindowFullScreen );
 
     m_toolName = toolname;
+    m_screenXOffset = screengeometry.x();
+    m_screenYOffset = screengeometry.y();
     m_drawCross = 0;
-    m_shiftLeft = frameGap;
-    m_shiftTop = frameGap;
+    //m_shiftLeft = frameGap;
+    //m_shiftTop = frameGap;
+    m_shiftLeft = 0;
+    m_shiftTop = 0;
 
     getMaxTabletArea();
-
+    
     QLabel *showInfo = new QLabel();
-    showInfo->setText( i18n( "Please tap into all four corners to calibrate the tablet.\nPress escape to cancel the process." ) );
+    showInfo->setText( i18n( "Please tap into all four corners to calibrate the tablet.\nPress escape to cancel the process.") );
     showInfo->setAlignment( Qt::AlignCenter );
     QVBoxLayout *mainLayout = new QVBoxLayout;
     mainLayout->addWidget( showInfo );
 
     setLayout(mainLayout);
+
 }
 
 QRect CalibrationDialog::calibratedArea()
@@ -73,48 +81,61 @@ void CalibrationDialog::paintEvent( QPaintEvent *event )
     QPainter painter( this );
     painter.setPen( Qt::black );
 
+    if (m_shiftLeft == 0) {
+        m_shiftLeft = size().width()/numblocks;
+    }
+    if (m_shiftTop == 0) {
+        m_shiftTop = size().height()/numblocks;
+    }
+    
     // vertical line
-    painter.drawLine( m_shiftLeft + boxwidth / 2,
-                      m_shiftTop,
-                      m_shiftLeft + boxwidth / 2,
-                      m_shiftTop + boxwidth );
+    painter.drawLine( m_shiftLeft,
+                      m_shiftTop - boxwidth/2,
+                      m_shiftLeft,
+                      m_shiftTop + boxwidth/2 );
 
     // horizontal line
-    painter.drawLine( m_shiftLeft,
-                      m_shiftTop + boxwidth / 2,
-                      m_shiftLeft + boxwidth,
-                      m_shiftTop + boxwidth / 2 );
+    painter.drawLine( m_shiftLeft - boxwidth /2,
+                      m_shiftTop ,
+                      m_shiftLeft + boxwidth/2,
+                      m_shiftTop );
 
     // draw circle around center
-    painter.drawEllipse( QPoint( m_shiftLeft + boxwidth / 2,
-                                 m_shiftTop + boxwidth / 2 ),
+    painter.drawEllipse( QPoint( m_shiftLeft ,
+                                 m_shiftTop ),
                          10, 10 );
 }
 
 void CalibrationDialog::mousePressEvent( QMouseEvent *event )
 {
-    if( event->pos().x() > m_shiftLeft
-        && event->pos().x() < m_shiftLeft + boxwidth
-        && event->pos().y() > m_shiftTop
-        && event->pos().y() < m_shiftTop + boxwidth ) {
+    if( event->pos().x() > m_shiftLeft - boxwidth/2
+        && event->pos().x() < m_shiftLeft + boxwidth/2
+        && event->pos().y() > m_shiftTop -boxwidth/2
+        && event->pos().y() < m_shiftTop + boxwidth/2 ) {
+
+        qreal delta_x = size().width()/numblocks;
+        qreal delta_y = size().height()/numblocks;
+    
 
         m_drawCross++;
-
         switch( m_drawCross ) {
         case 1:
             m_topLeft = event->globalPos();
-            m_shiftLeft = frameGap;
-            m_shiftTop = size().height() - frameGap - boxwidth;
+            //m_shiftLeft = frameGap;
+            //m_shiftTop = size().height() - frameGap - boxwidth;
+            m_shiftTop = size().height() - delta_y -1 ;
             break;
         case 2:
             m_bottomLeft = event->globalPos();
-            m_shiftLeft = size().width() - frameGap - boxwidth;
-            m_shiftTop = size().height() - frameGap - boxwidth;
+            //m_shiftLeft = size().width() - frameGap - boxwidth;
+            //m_shiftTop = size().height() - frameGap - boxwidth;
+            m_shiftLeft = size().width() - delta_x - 1;
             break;
         case 3:
             m_bottomRight = event->globalPos();
-            m_shiftLeft = size().width() - frameGap - boxwidth;
-            m_shiftTop = frameGap;
+            //m_shiftLeft = size().width() - frameGap - boxwidth;
+            //m_shiftTop = frameGap;
+            m_shiftTop = delta_y ;
             break;
         case 4:
             m_topRight = event->globalPos();
@@ -129,26 +150,54 @@ void CalibrationDialog::mousePressEvent( QMouseEvent *event )
 
 void CalibrationDialog::calculateNewArea()
 {
-    qreal frameoffset = frameGeometry().height() - size().height();
-    qreal tabletScreenRatioWidth = m_originaltabletArea.width() / size().width();
-    qreal tabletScreenRatioHeight = m_originaltabletArea.height() / size().height();
+    //qreal frameoffset = frameGeometry().height() - size().height();
+    qreal tabletScreenRatioWidth = (m_originaltabletArea.width() - m_originaltabletArea.x())  / (float)size().width();
+    qreal tabletScreenRatioHeight = (m_originaltabletArea.height() - m_originaltabletArea.y())/ (float)size().height();
+    
+    qreal clickedX = ( m_topLeft.x() + m_bottomLeft.x() ) / 2  - m_screenXOffset;
+    qreal newX =  clickedX  * tabletScreenRatioWidth + m_originaltabletArea.x();
 
-    qreal clickedX = ( m_topLeft.x() + m_bottomLeft.x() ) / 2;
-    qreal newX = ( clickedX - frameGap - boxwidth / 2 ) * tabletScreenRatioWidth;
+    qreal clickedY = ( m_topLeft.y() + m_topRight.y() ) / 2 - m_screenYOffset;
+    qreal newY =  clickedY  * tabletScreenRatioHeight + m_originaltabletArea.y();
 
-    qreal clickedY = ( m_topLeft.y() + m_topRight.y() ) / 2;
-    qreal newY = ( clickedY - frameGap - boxwidth / 2 - frameoffset ) * tabletScreenRatioHeight;
+    qreal clickedWidth = ( m_topRight.x() + m_bottomRight.x() ) / 2 - m_screenXOffset;
+    qreal newWidth =  clickedWidth  * tabletScreenRatioWidth + m_originaltabletArea.x();
 
-    qreal clickedWidth = ( m_topRight.x() + m_bottomRight.x() ) / 2;
-    qreal newWidth = ( clickedWidth + frameGap + boxwidth / 2 ) * tabletScreenRatioWidth;
+    qreal clickedHeight = ( m_bottomRight.y() + m_bottomLeft.y() ) / 2 -  m_screenYOffset;
+    qreal newHeight = clickedHeight * tabletScreenRatioHeight + m_originaltabletArea.y();
+    
+    /* add/subtract offset of calculated target points from corners */
+    qreal delta_x = (newWidth - newX)/float(numblocks-2) ;
+    qreal delta_y = (newHeight - newY)/float(numblocks-2);
+    newX -=delta_x;
+    newWidth +=delta_x;
+    newY -=delta_y;
+    newHeight +=delta_y;
 
-    qreal clickedHeight = ( m_bottomRight.y() + m_bottomLeft.y() ) / 2;
-    qreal newHeight = ( clickedHeight + frameGap + boxwidth / 2 + frameoffset ) * tabletScreenRatioHeight;
-
+    if (debug) {
+        qDebug() << "OriginalXYmin: " << m_originaltabletArea.x() << "," << m_originaltabletArea.y();
+        qDebug() << "OriginalXYmax: " << m_originaltabletArea.width() << "," << m_originaltabletArea.height();
+        qDebug() << "ScreenSize: " << size().width() << "," << size().height();
+        qDebug() << "RatioX: " << tabletScreenRatioWidth;
+        qDebug() << "RatioY: " << tabletScreenRatioHeight;
+        qDebug() << "clickedX: " << clickedX;
+        qDebug() << "newX: "<< newX;
+        qDebug() << "clickedY: " << clickedY;
+        qDebug() << "newY: "<< newY;
+        qDebug() << "clickedWidth" << clickedWidth;
+        qDebug() << "newWidth: "<< newWidth;
+        qDebug() << "clickedHeight" << clickedHeight;
+        qDebug() << "newHeight: "<< newHeight;
+        qDebug() << "delta_x: "<< delta_x;
+        qDebug() << "delta_y: "<< delta_y;
+    }
+    
     m_newtabletArea.setX( newX );
     m_newtabletArea.setY( newY );
-    m_newtabletArea.setWidth( newWidth );
-    m_newtabletArea.setHeight( newHeight );
+    // width and height values stored take origin XY into account, so subtract them
+    m_newtabletArea.setWidth( newWidth - newX );
+    m_newtabletArea.setHeight( newHeight -newY );
+    
 }
 
 void CalibrationDialog::getMaxTabletArea()
@@ -177,33 +226,19 @@ void CalibrationDialog::getMaxTabletArea()
     XGetDeviceProperty( dpy, dev, prop, 0, 1000, False, AnyPropertyType,
                         &type, &format, &nitems, &bytes_after, &dataOld );
 
-    XGetDeviceProperty( dpy, dev, prop, 0, 1000, False, AnyPropertyType,
-                        &type, &format, &nitems, &bytes_after, &data );
-
-    ldata = ( long * )data;
-
-    // first reset to default values
-    ldata[0] = -1;
-    ldata[1] = -1;
-    ldata[2] = -1;
-    ldata[3] = -1;
-
-    XChangeDeviceProperty( dpy, dev, prop, type, format,
-                           PropModeReplace, data, nitems );
-
-    // Now get the defaults
-    XGetDeviceProperty( dpy, dev, prop, 0, 1000, False, AnyPropertyType,
-                        &type, &format, &nitems, &bytes_after, &data );
-
-    ldata = ( long * )data;
+    ldata = ( long * )dataOld;
+    // load the original tablet area values 
     m_originaltabletArea.setX( ldata[0] );
-    m_originaltabletArea.setX( ldata[1] );
+    m_originaltabletArea.setY( ldata[1] );
     m_originaltabletArea.setWidth( ldata[2] );
     m_originaltabletArea.setHeight( ldata[3] );
-
-    // and apply the old values again
-    XChangeDeviceProperty( dpy, dev, prop, type, format,
-                           PropModeReplace, dataOld, nitems );
+    
+    if (debug) {
+        qDebug() << "originalX: "<< ldata[0];
+        qDebug() << "originalY: "<< ldata[1];
+        qDebug() << "originalWidth: "<< ldata[2];
+        qDebug() << "originalHeight: "<< ldata[3];
+    }
 
     XFlush( dpy );
 

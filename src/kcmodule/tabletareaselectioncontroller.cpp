@@ -200,8 +200,8 @@ void TabletAreaSelectionController::setupController(const ScreenMap& mappings, c
 void TabletAreaSelectionController::onCalibrateClicked()
 {
     Q_D(TabletAreaSelectionController);
-
-    CalibrationDialog calibDialog(d->deviceName);
+    
+    CalibrationDialog calibDialog(d->deviceName, getScreenGeometry(d->currentScreen));
     calibDialog.exec();
 
     setSelection(TabletArea(calibDialog.calibratedArea()));
