@@ -8,10 +8,11 @@ name=Wacom Co., Ltd
 listfile=wacom_devicelist
 driver=wacom-tools
 
-[172f]
-name=Waltop
-listfile=waltop_devicelist
-driver=wacom-tools
+# commented out due to conflicts with wacom device ids
+#[172f]
+#name=Waltop
+#listfile=waltop_devicelist
+#driver=wacom-tools
 
 [0930]
 name=Toshiba
